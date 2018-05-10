@@ -64,7 +64,7 @@ data:
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
     TESTS_FILE="tests.yaml"
 
-    cat <<e | sed 's/^\ \+//g' > $TESTS_FILE
+    cat <<e | sed 's/^    //' > $TESTS_FILE
     ---
     apiVersion: v1
     kind: Event
