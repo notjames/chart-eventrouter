@@ -4,7 +4,7 @@ metadata:
   name: {{ printf "%s-%s" .Release.Name "clusterapitest" | trunc 63 }}
   labels:
     app: {{ printf "%s-%s" .Release.Name "clusterapitest" | trunc 63 }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    chart: {{template "namewithversion" .}}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
 data:
