@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fullname" $ }}-test
+  labels:
+    app: {{ template "name" $ }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+data:
+  run.sh: |-
+    RETRY_CNT=12
+    RETRY_DLY=1
+    RETRY_MAX_TIME=60
+    CNCT_TIMEOUT=5
+    KUBEAPI_URL="https://kubernetes.default.svc/api"
+    CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
+    TESTS_FILE="tests.yaml"
+
+    @test "Testing EventRouter Service"
+    {
+      curl --connect-timeout $CNCT_TIMEOUT   \
+           --retry $RETRY_CNT                \
+           --retry-delay $RETRY_DLY          \
+           --retry-max-time  $RETRY_MAX_TIME \
+           --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
+           -X POST $KUBEAPI_URL @$TESTS_FILE
+    }
