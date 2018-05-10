@@ -55,18 +55,6 @@ metadata:
     release: {{ .Release.Name }}
 data:
   run.sh: |-
-    TEST_YAML="""
----
-apiVersion: v1
-kind: Event
-metadata:
-  name: "Validate EventRouter Running/Working"
-involvedObject: {}
-reportingComponent:
-reportingInstance:
-message: "*** This is an INFO type event triggered by TESTS. ***"
-type: Normal
-    """
     RETRY_CNT=12
     RETRY_DLY=1
     RETRY_MAX_TIME=60
@@ -75,6 +63,19 @@ type: Normal
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
     TESTS_FILE="tests.yaml"
+
+    cat <<e | sed 's/^\ \+//g' > $TESTS_FILE
+    ---
+    apiVersion: v1
+    kind: Event
+    metadata:
+      name: "Validate EventRouter Running/Working"
+    involvedObject: {}
+    reportingComponent:
+    reportingInstance:
+    message: "*** This is an INFO type event triggered by TESTS. ***"
+    type: Normal
+e
 
     @test "Test SEND event to EventRouter Service"
     {
