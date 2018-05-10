@@ -54,7 +54,7 @@ metadata:
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
 data:
-  run.sh: |-
+  run.sh: |
     RETRY_CNT=12
     RETRY_DLY=1
     RETRY_MAX_TIME=60
@@ -64,18 +64,18 @@ data:
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
     TESTS_FILE="tests.yaml"
 
-    #    cat <<e | sed 's/^    //' > $TESTS_FILE
-    #    ---
-    #    apiVersion: v1
-    #    kind: Event
-    #    metadata:
-    #      name: "Validate EventRouter Running/Working"
-    #    involvedObject: {}
-    #    reportingComponent:
-    #    reportingInstance:
-    #    message: "*** This is an INFO type event triggered by TESTS. ***"
-    #    type: Normal
-    #e
+    cat <<e | sed 's/^    //' > $TESTS_FILE
+    ---
+    apiVersion: v1
+    kind: Event
+    metadata:
+      name: "Validate EventRouter Running/Working"
+    involvedObject: {}
+    reportingComponent:
+    reportingInstance:
+    message: "*** This is an INFO type event triggered by TESTS. ***"
+    type: Normal
+e
 
     echo >&2 "This is the test YAML file..."
     cat >&2 $TESTS_FILE
