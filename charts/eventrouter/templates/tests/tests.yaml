@@ -5,7 +5,7 @@ metadata:
   name: "Validate EventRouter Running/Working"
 involvedObject:
   name: "test object"
-  namespace: logging
+  namespace: {{ Release.Namespace }}
 reportingComponent:
 reportingInstance:
 message: '*** This is an INFO type event triggered by TESTS. ***'
