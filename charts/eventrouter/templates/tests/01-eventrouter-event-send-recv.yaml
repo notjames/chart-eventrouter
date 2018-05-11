@@ -36,14 +36,12 @@ spec:
       - mountPath: /tools
         name: tools
       - mountPath: /tests/tests.yaml
+        name: tests
         subpath: tests.yaml
   volumes:
   - name: tests
     configMap:
       name: {{ template "fullname" . }}
-  - name: tests
-    configMap:
-      name: tests.yaml
   - name: tools
     emptyDir: {}
   restartPolicy: Never
