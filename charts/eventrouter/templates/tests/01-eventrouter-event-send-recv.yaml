@@ -31,7 +31,7 @@ spec:
       volumeMounts:
       - mountPath: /tests
         name: tests
-        readOnly: true
+        readOnly: false
       - mountPath: /tools
         name: tools
       - mountPath: /tests/tests.yaml
@@ -58,7 +58,7 @@ metadata:
 data:
   tests.yaml: tests.yaml.tpl
   run.sh: |
-    TEST_MSG="$(grep 'message: "' /tests/tests.yaml | cut -d : -f 3- | tr -d '"')"
+
     RETRY_CNT=12
     RETRY_DLY=1
     RETRY_MAX_TIME=60
@@ -66,11 +66,31 @@ data:
     KUBEAPI_URL="https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/events"
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
-    TESTS_FILE="/tests/tests.yaml"
+    TIMENOW=$(date +%Y%m%dT%H%M%s)
 
-    @test "Test SEND event to EventRouter Service"
-    {
+    # /tests in $TESTS_FILE is using the volumeMounts path
+    # from the containers spec
+    TEST_TMPL="/tests/templates/tests.tpl"
+    TEST_YAML="/tests/yaml/tests.yaml"
+
+    # test 1
+    @test "Create VALID test YAML from template {
+      # Add timestamp to test yaml
+      run envsubst < $TEST_TMPL > $TEST_FILE
+
+      TEST_MSG="$(grep 'message: "' $TEST_FILE | cut -d : -f 3- | tr -d '"')"
+
+      run bash -c "echo $TEST_MSG | grep -c TIMENOW"
+      [[ $result != 1 ]]
+    }
+
+    # test 2
+    @test "Test SEND event to EventRouter Service" {
+      export TIMENOW
+      envsubst < $TEST_FILE
+
       curl --connect-timeout $CNCT_TIMEOUT   \
+           --silent                          \
            --retry $RETRY_CNT                \
            --retry-delay $RETRY_DLY          \
            --retry-max-time  $RETRY_MAX_TIME \
@@ -78,20 +98,17 @@ data:
            -X POST $KUBEAPI_URL @$TESTS_FILE
     }
 
+    # test 3
     @test "Test VERIFY event to EventRouter Service RECVd"
     {
-      resp=$(curl --connect-timeout $CNCT_TIMEOUT   \
-             --retry $RETRY_CNT                \
-             --retry-delay $RETRY_DLY          \
-             --retry-max-time  $RETRY_MAX_TIME \
-             --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
-             -X GET $KUBEAPI_URL | jq -c -M '.items[].message')
+      run curl --connect-timeout $CNCT_TIMEOUT   \
+               --silent                          \
+               --retry $RETRY_CNT                \
+               --retry-delay $RETRY_DLY          \
+               --retry-max-time  $RETRY_MAX_TIME \
+               --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
+               -X GET $KUBEAPI_URL | jq -c -M '.items[].message')
 
-      if [[ "$resp" != "$TEST_MSG" ]]
-      then
-        # failed test
-        return 10
-      else
-        return 0
-      fi
+      echo $output
+      [[ $output == $TEST_MSG ]]
     }
