@@ -59,11 +59,12 @@ metadata:
 data:
   tests.yaml: tests.yaml.tpl
   run.sh: |
+    TEST_MSG="$(grep 'message: "' /tests/tests.yaml | cut -d : -f 3- | tr -d '"')"
     RETRY_CNT=12
     RETRY_DLY=1
     RETRY_MAX_TIME=60
     CNCT_TIMEOUT=5
-    KUBEAPI_URL="https://kubernetes.default.svc/api"
+    KUBEAPI_URL="https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/events"
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
     TESTS_FILE="/tests/tests.yaml"
@@ -80,10 +81,18 @@ data:
 
     @test "Test VERIFY event to EventRouter Service RECVd"
     {
-      curl --connect-timeout $CNCT_TIMEOUT   \
-           --retry $RETRY_CNT                \
-           --retry-delay $RETRY_DLY          \
-           --retry-max-time  $RETRY_MAX_TIME \
-           --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
-           -X GET $KUBEAPI_URL | jq '.'
+      resp=$(curl --connect-timeout $CNCT_TIMEOUT   \
+             --retry $RETRY_CNT                \
+             --retry-delay $RETRY_DLY          \
+             --retry-max-time  $RETRY_MAX_TIME \
+             --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
+             -X GET $KUBEAPI_URL | jq -c -M '.items[].message')
+
+      if [[ "$resp" != "$TEST_MSG" ]]
+      then
+        # failed test
+        return 10
+      else
+        return 0
+      fi
     }
