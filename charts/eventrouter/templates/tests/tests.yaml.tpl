@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Event
 metadata:
-  name: "Validate EventRouter Running/Working"
+  name: "Validate EventRouter Works"
 involvedObject: {}
 reportingComponent:
 reportingInstance:
