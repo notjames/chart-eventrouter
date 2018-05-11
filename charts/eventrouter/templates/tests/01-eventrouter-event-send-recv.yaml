@@ -35,10 +35,15 @@ spec:
         readOnly: true
       - mountPath: /tools
         name: tools
+      - mountPath: /tools/tests.yaml
+        subpath: tests.yaml
   volumes:
   - name: tests
     configMap:
       name: {{ template "fullname" . }}
+  - name: tests
+    configMap:
+      name: tests.yaml
   - name: tools
     emptyDir: {}
   restartPolicy: Never
@@ -64,22 +69,6 @@ data:
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
     TESTS_FILE="tests.yaml"
 
-    cat <<e | sed 's/^    //' > $TESTS_FILE
-    ---
-    apiVersion: v1
-    kind: Event
-    metadata:
-      name: "Validate EventRouter Running/Working"
-    involvedObject: {}
-    reportingComponent:
-    reportingInstance:
-    message: "*** This is an INFO type event triggered by TESTS. ***"
-    type: Normal
-e
-
-    echo >&2 "This is the test YAML file..."
-    cat >&2 $TESTS_FILE
-
     @test "Test SEND event to EventRouter Service"
     {
       curl --connect-timeout $CNCT_TIMEOUT   \
@@ -99,3 +88,4 @@ e
            --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
            -X GET $KUBEAPI_URL | jq '.'
     }
+  tests.yaml: tests.yaml.tpl
