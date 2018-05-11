@@ -35,7 +35,7 @@ spec:
         readOnly: true
       - mountPath: /tools
         name: tools
-      - mountPath: /tools/tests.yaml
+      - mountPath: /tests/tests.yaml
         subpath: tests.yaml
   volumes:
   - name: tests
@@ -52,13 +52,14 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ printf "%s-%s" .Release.Name "clusterapitest" | trunc 63 }}
+  name: {{ template "fullname" . }}
   labels:
-    app: {{ printf "%s-%s" .Release.Name "clusterapitest" | trunc 63 }}
+    app: {{ template "fullname" . }}
     chart: {{template "namewithversion" .}}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
 data:
+  tests.yaml: tests.yaml.tpl
   run.sh: |
     RETRY_CNT=12
     RETRY_DLY=1
@@ -67,7 +68,7 @@ data:
     KUBEAPI_URL="https://kubernetes.default.svc/api"
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
-    TESTS_FILE="tests.yaml"
+    TESTS_FILE="/tests/tests.yaml"
 
     @test "Test SEND event to EventRouter Service"
     {
@@ -88,4 +89,3 @@ data:
            --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
            -X GET $KUBEAPI_URL | jq '.'
     }
-  tests.yaml: tests.yaml.tpl
