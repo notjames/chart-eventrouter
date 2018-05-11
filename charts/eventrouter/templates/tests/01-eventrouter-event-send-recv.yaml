@@ -37,7 +37,7 @@ spec:
         name: tools
       - mountPath: /tests/tests.yaml
         name: tests
-        subpath: tests.yaml
+        subPath: tests.yaml
   volumes:
   - name: tests
     configMap:
