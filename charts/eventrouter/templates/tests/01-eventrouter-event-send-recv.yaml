@@ -56,7 +56,6 @@ metadata:
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
 data:
-  tests.yaml: tests.yaml.tpl
   run.sh: |
 
     RETRY_CNT=12
@@ -66,28 +65,30 @@ data:
     KUBEAPI_URL="https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/events"
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
-    TIMENOW=$(date +%Y%m%dT%H%M%s)
+    TEST_TMPL="/var/tmp/tests/templates/tests.tpl"
+    TEST_YAML="/var/tmp/tests/yaml/tests.yaml"
+    TIMENOW=$(date +%Y%m%dT%H%M%S)
 
-    # /tests in $TESTS_FILE is using the volumeMounts path
-    # from the containers spec
-    TEST_TMPL="/tests/templates/tests.tpl"
-    TEST_YAML="/tests/yaml/tests.yaml"
+    export TIMENOW
 
     # test 1
-    @test "Create VALID test YAML from template {
-      # Add timestamp to test yaml
-      run envsubst < $TEST_TMPL > $TEST_FILE
+    @test "Create VALID test YAML from template" {
+      # /tests in $TEST_YAML is using the volumeMounts path
+      # from the containers spec
 
-      TEST_MSG="$(grep 'message: "' $TEST_FILE | cut -d : -f 3- | tr -d '"')"
+      run envsubst < $TEST_TMPL > $TEST_YAML
+      [[ ! -s $TEST_YAML ]]
 
-      run bash -c "echo $TEST_MSG | grep -c TIMENOW"
+      TEST_MSG="$(grep 'message: "' $TEST_YAML | cut -d : -f 3- | tr -d '"')"
+
+      run bash -c "echo $TEST_MSG | grep -c \$TIMENOW"
       [[ $result != 1 ]]
     }
 
     # test 2
     @test "Test SEND event to EventRouter Service" {
       export TIMENOW
-      envsubst < $TEST_FILE
+      envsubst < $TEST_YAML
 
       curl --connect-timeout $CNCT_TIMEOUT   \
            --silent                          \
@@ -95,12 +96,11 @@ data:
            --retry-delay $RETRY_DLY          \
            --retry-max-time  $RETRY_MAX_TIME \
            --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
-           -X POST $KUBEAPI_URL @$TESTS_FILE
+           -X POST $KUBEAPI_URL @$TESTS_YAML
     }
 
     # test 3
-    @test "Test VERIFY event to EventRouter Service RECVd"
-    {
+    @test "Test VERIFY event to EventRouter Service RECVd" {
       run curl --connect-timeout $CNCT_TIMEOUT   \
                --silent                          \
                --retry $RETRY_CNT                \
