@@ -28,15 +28,14 @@ spec:
     - name: {{ .Release.Name }}-test
       image: {{ .Values.test.image }}:{{ .Values.test.tag }}
       command: ["/tools/bats/bats", "-t", "/tests/run.sh"]
+      env:
+      - name: TIMENOW
+        value: {{ .Release.Time | quote }}
       volumeMounts:
-      - mountPath: /tests
-        name: tests
-        readOnly: false
-      - mountPath: /tools
-        name: tools
-      - mountPath: /tests/tests.yaml
-        name: tests
-        subPath: tests.yaml
+      - name: tests
+        mountPath: /tests
+      - name: tools
+        mountPath: /tools
   volumes:
   - name: tests
     configMap:
@@ -52,12 +51,30 @@ metadata:
   name: {{ template "fullname" . }}
   labels:
     app: {{ template "fullname" . }}
-    chart: {{template "namewithversion" .}}
+    chart: {{ template "namewithversion" . }}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
 data:
-  run.sh: |
+  event-test.tpl: |-
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Helmtest",
+        "namespace": {{- .Release.Namespace | quote }}
+      },
+      "kind": "Event",
+      "message": "*** This is an INFO type event triggered by TESTS @ $TIMENOW. ***",
+      "metadata": {
+        "name": "Validate EventRouter Works $TIMENOW"
+      },
+      "reportingComponent": null,
+      "reportingInstance": null,
+      "type": "Normal"
+    }
 
+  run.sh: |
     RETRY_CNT=12
     RETRY_DLY=1
     RETRY_MAX_TIME=60
@@ -65,50 +82,91 @@ data:
     KUBEAPI_URL="https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/events"
     CACERT_FILE="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     TOKEN="$(< /var/run/secrets/kubernetes.io/serviceaccount/token)"
-    TEST_TMPL="/var/tmp/tests/templates/tests.tpl"
-    TEST_YAML="/var/tmp/tests/yaml/tests.yaml"
-    TIMENOW=$(date +%Y%m%dT%H%M%S)
+    TEST_TMPL_DIR="/tests"
+    TEST_YAML_DIR="/tests"
+    TEST_TMPL="$TEST_TMPL_DIR/event-test.tpl"
+    TEST_YAML="$TEST_YAML_DIR/tests.yaml"
+    TMP_RESP="$BATS_TMPDIR/resp.out"
 
-    export TIMENOW
+    # TIMENOW is set in the pod definition
 
     # test 1
     @test "Create VALID test YAML from template" {
+      echo
+      echo "====================================="
+      echo "\$TIMENOW is: $TIMENOW"
+
       # /tests in $TEST_YAML is using the volumeMounts path
       # from the containers spec
+      sed -r 's/\$TIMENOW/'"$TIMENOW"'/' $TEST_TMPL > $TEST_YAML
 
-      run envsubst < $TEST_TMPL > $TEST_YAML
-      [[ ! -s $TEST_YAML ]]
-
-      TEST_MSG="$(grep 'message: "' $TEST_YAML | cut -d : -f 3- | tr -d '"')"
-
-      run bash -c "echo $TEST_MSG | grep -c \$TIMENOW"
-      [[ $result != 1 ]]
+      [[ -s $TEST_YAML ]]
     }
 
     # test 2
     @test "Test SEND event to EventRouter Service" {
-      export TIMENOW
-      envsubst < $TEST_YAML
+      echo
+      echo "====================================="
+      echo "KUBEAPI URL is: $KUBEAPI_URL"
+      echo "TEST_TMPL is: $TEST_TMPL"
+      echo "TEST_YAML is: $TEST_YAML"
+      echo "PWD is: $PWD"
 
-      curl --connect-timeout $CNCT_TIMEOUT   \
-           --silent                          \
-           --retry $RETRY_CNT                \
-           --retry-delay $RETRY_DLY          \
-           --retry-max-time  $RETRY_MAX_TIME \
-           --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
-           -X POST $KUBEAPI_URL @$TESTS_YAML
+      echo
+      echo "====================================="
+      echo "The INPUT TEMPLATE directory contains:"
+      ls -ltr $TEST_TMPL_DIR
+
+      echo "The INPUT TEMPLATE contains:"
+      cat $TEST_TMPL
+
+      echo
+      echo "====================================="
+      echo "The OUTPUT YAML directory contains:"
+      ls -ltr $TEST_YAML_DIR
+
+      echo
+      echo "The INPUT YAML contains (cat -A):"
+      cat -A $TEST_YAML
+
+      run curl --connect-timeout $CNCT_TIMEOUT       \
+               --verbose                             \
+               --silent                              \
+               --retry $RETRY_CNT                    \
+               --retry-delay $RETRY_DLY              \
+               --retry-max-time  $RETRY_MAX_TIME     \
+               --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
+               --header "Content-Type: application/json" \
+               --write-out "%{http_code}"            \
+               -X POST $KUBEAPI_URL -d @$TEST_YAML --output /dev/stderr 2> $TMP_RESP
+
+      resp_status=$(jq '.code' $TMP_RESP)
+
+      >&2 echo "STATUS IS: ${resp_status:-NOT reported; probably because no JSON was returned.}"
+      >&2 echo $output
+
+      [[ $output == 2[02][0-6] ]]
     }
 
     # test 3
     @test "Test VERIFY event to EventRouter Service RECVd" {
-      run curl --connect-timeout $CNCT_TIMEOUT   \
-               --silent                          \
-               --retry $RETRY_CNT                \
-               --retry-delay $RETRY_DLY          \
-               --retry-max-time  $RETRY_MAX_TIME \
-               --cacert $CACERT_FILE --header "Authorization: Bearer $TOKEN" \
-               -X GET $KUBEAPI_URL | jq -c -M '.items[].message')
+      curl --connect-timeout $CNCT_TIMEOUT           \
+           --verbose                                 \
+           --silent                                  \
+           --retry $RETRY_CNT                        \
+           --retry-delay $RETRY_DLY                  \
+           --retry-max-time  $RETRY_MAX_TIME         \
+           --cacert $CACERT_FILE                     \
+           --header "Authorization: Bearer $TOKEN"   \
+           --header "Content-Type: application/json" \
+           $KUBEAPI_URL > $BATS_TMPDIR/resp.out
 
-      echo $output
-      [[ $output == $TEST_MSG ]]
+      #run jq --arg match_this "$TIMENOW" -c -M '.items[].message | ' $BATS_TMPDIR/resp.out
+      run grep "$TIMENOW" $BATS_TMPDIR/resp.out
+
+      echo
+      echo "RESPONSE from GET EVENTS"
+      cat $BATS_TMPDIR/resp.out
+
+      [[ $output == *$TIMENOW* ]]
     }
