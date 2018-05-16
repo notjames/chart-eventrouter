@@ -11,7 +11,7 @@ metadata:
   annotations:
     "helm.sh/hook": test-success
 spec:
-  serviceAccountName: {{ .Values.name }}
+  serviceAccountName: {{ .Values.name }}-{{ .Release.Namespace }}
   initContainers:
     - name: test-framework
       image: dduportal/bats:0.4.0
