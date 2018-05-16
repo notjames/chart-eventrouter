@@ -14,5 +14,5 @@ roleRef:
   name: {{ .Values.name }}-{{ .Release.Namespace }}
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.name }}
+  name: {{ .Values.name }}-{{ .Release.Namespace }}
   namespace: {{.Release.Namespace}}
