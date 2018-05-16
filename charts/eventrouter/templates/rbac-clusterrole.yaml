@@ -11,4 +11,4 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["events"]
-  verbs: ["get", "watch", "list"]
+  verbs: ["get", "watch", "list", "create"]
