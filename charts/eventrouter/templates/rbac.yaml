@@ -2,17 +2,17 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ .Values.name }} 
+  name: {{ .Values.name }}-{{ .Release-Namespace }}
   labels:
     app: {{ template "eventrouter.name" . }}
     chart: {{ template "namewithversion" . }}
-    release: "{{.Release.Name}}"
+    release: "{{ .Release.Name }}"
     heritage: "{{.Release.Service}}"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Values.name }} 
+  name: {{ .Values.name }}-{{ .Release-Namespace }}
   labels:
     app: {{ template "eventrouter.name" . }}
     chart: {{ template "namewithversion" . }}
@@ -26,7 +26,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ .Values.name }} 
+  name: {{ .Values.name }}-{{ .Release-Namespace }}
   labels:
     app: {{ template "eventrouter.name" . }}
     chart: {{ template "namewithversion" . }}
